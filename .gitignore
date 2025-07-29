@@ -17,3 +17,5 @@ test.py
 *.ttf
 *.onnx
 .qodo
+.claude/settings.json
+.claude/settings.local.json
