@@ -20,5 +20,6 @@
     "default_thread_count_offline": 4,
     "default_src_lang": "English",
     "default_dst_lang": "中文",
-    "default_glossary": "Default"
+    "default_glossary": "Default",
+    "footer_html": "<div style=\"position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; padding: 10px 0;\">有问题或优化建议请联系 李德善（024372）</div>"
 }

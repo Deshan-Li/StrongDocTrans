@@ -5,6 +5,7 @@ Separated layout components and CSS styles
 
 import gradio as gr
 import os
+import json
 from config.languages_config import get_available_languages
 
 
@@ -368,13 +369,27 @@ def create_header(app_title, encoded_image, mime_type, img_height):
 
 def create_footer():
     """Create app footer"""
-    return gr.HTML("""
-    <div style="position: fixed; bottom: 0; left: 0; width: 100%; 
-                text-align: center; padding: 10px 0;">
-        Made by Haruka-YANG | Version: 3.7 | 
-        <a href="https://github.com/YANG-Haruka/LinguaHaru" target="_blank">Visit Github</a>
-    </div>
-    """)
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), "config", "system_config.json")
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        footer_html = config.get("footer_html", """
+        <div style="position: fixed; bottom: 0; left: 0; width: 100%; 
+                    text-align: center; padding: 10px 0;">
+            Made by Haruka-YANG | Version: 3.7 | 
+            <a href="https://github.com/YANG-Haruka/LinguaHaru" target="_blank">Visit Github</a>
+        </div>
+        """)
+        return gr.HTML(footer_html)
+    except Exception as e:
+        # Fallback to default if config loading fails
+        return gr.HTML("""
+        <div style="position: fixed; bottom: 0; left: 0; width: 100%; 
+                    text-align: center; padding: 10px 0;">
+            Made by Haruka-YANG | Version: 3.7 | 
+            <a href="https://github.com/YANG-Haruka/LinguaHaru" target="_blank">Visit Github</a>
+        </div>
+        """)
 
 
 def create_theme_toggle():
