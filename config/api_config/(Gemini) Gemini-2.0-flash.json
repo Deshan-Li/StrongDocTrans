@@ -1,4 +1,4 @@
 {
-    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "base_url": "https://api.gpt.ge/v1/",
     "model": "gemini-2.0-flash"
 }

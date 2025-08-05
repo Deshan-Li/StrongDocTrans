@@ -19,3 +19,5 @@ test.py
 .qodo
 .claude/settings.json
 .claude/settings.local.json
+img/custom
+config/system_config.json
