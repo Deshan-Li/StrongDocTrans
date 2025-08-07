@@ -2,6 +2,10 @@
 
 本文件为Claude Code（claude.ai/code）在处理本仓库代码时提供指导。
 
+# 开发约定
+- 编写的每个函数都需要有详细的注释，包括参数、返回值、功能描述等。
+- 每个生成的文件在文件头部都标注此文件为Claude Code编写
+
 ## 项目介绍
 
 StrongDocTrans（LinguaHaru）是一个基于大语言模型的多格式文档翻译工具，支持多种文件格式（DOCX、XLSX、PPTX、PDF、TXT、SRT、MD等）的一键高质量翻译。项目特点包括：

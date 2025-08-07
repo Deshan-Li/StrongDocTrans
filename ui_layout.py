@@ -549,12 +549,6 @@ def create_main_interface(config):
     """Create main translation interface"""
     initial_default_online = config.get("default_online", False)
     
-    api_key_input = gr.Textbox(
-        label="API Key", 
-        placeholder="Enter your API key here", 
-        value="",
-        visible=initial_default_online
-    )
     
     file_input = gr.File(
         label="Upload Files (.docx, .pptx, .xlsx, .pdf, .srt, .txt, .md)",
@@ -570,7 +564,7 @@ def create_main_interface(config):
         continue_button = gr.Button("Continue Translation", interactive=False)
         stop_button = gr.Button("Stop Translation", interactive=False)
     
-    return (api_key_input, file_input, output_file, status_message, 
+    return (file_input, output_file, status_message, 
             translate_button, continue_button, stop_button)
 
 

@@ -56,7 +56,7 @@ stop_lock = threading.Lock()
 
 def enqueue_task(
     translate_func, files, model, src_lang, dst_lang, 
-    use_online, api_key, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
+    use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
 ):
     """Enqueue translation task or execute immediately if no tasks running"""
     global active_tasks
@@ -74,7 +74,6 @@ def enqueue_task(
                 "src_lang": src_lang,
                 "dst_lang": dst_lang,
                 "use_online": use_online,
-                "api_key": api_key,
                 "max_retries": max_retries,
                 "max_token": max_token,
                 "thread_count": thread_count,
@@ -89,7 +88,7 @@ def enqueue_task(
 
 def process_task_with_queue(
     translate_func, files, model, src_lang, dst_lang, 
-    use_online, api_key, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
+    use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
 ):
     """Process translation task and handle queue management"""
     global active_tasks
@@ -98,7 +97,7 @@ def process_task_with_queue(
     
     queue_msg = enqueue_task(
         translate_func, files, model, src_lang, dst_lang, 
-        use_online, api_key, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
+        use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
     )
 
     labels = LABEL_TRANSLATIONS.get(session_lang, LABEL_TRANSLATIONS["en"])
@@ -113,7 +112,7 @@ def process_task_with_queue(
         
         result = translate_func(
             files, model, src_lang, dst_lang, 
-            use_online, api_key, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
+            use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
         )
         process_next_task_in_queue(translate_func, progress)
         
@@ -154,7 +153,6 @@ def process_queued_task(translate_func, task_info, progress):
             task_info["src_lang"],
             task_info["dst_lang"],
             task_info["use_online"],
-            task_info["api_key"],
             task_info["max_retries"],
             task_info["max_token"],
             task_info["thread_count"],
@@ -201,7 +199,7 @@ def check_stop_requested():
 
 def modified_translate_button_click(
     translate_files_func, files, model, src_lang, dst_lang, 
-    use_online, api_key, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name,
+    use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name,
     session_lang, continue_mode=False, progress=gr.Progress(track_tqdm=True)
 ):
     """Modified translate button click handler using task queue"""
@@ -218,20 +216,21 @@ def modified_translate_button_click(
     if not files:
         return output_file_update, "Please select file(s) to translate.", gr.update(value=stop_text, interactive=False)
     
-    if use_online and not api_key:
-        return output_file_update, "API key is required for online models.", gr.update(value=stop_text, interactive=False)
+    if use_online:
+        # API key is now read from model configuration file
+        pass
     
     def wrapped_translate_func(files, model, src_lang, dst_lang, 
-                              use_online, api_key, max_retries, max_token, thread_count,
+                              use_online, max_retries, max_token, thread_count,
                               excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress):
         return translate_files_func(files, model, src_lang, dst_lang, 
-                                   use_online, api_key, max_retries, max_token, thread_count,
+                                   use_online, max_retries, max_token, thread_count,
                                    excel_mode_2, word_bilingual_mode, glossary_name, session_lang,
                                    continue_mode=continue_mode, progress=progress)
     
     return process_task_with_queue(
         wrapped_translate_func, files, model, src_lang, dst_lang, 
-        use_online, api_key, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
+        use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
     )
 
 def check_temp_translation_exists(files):
@@ -665,7 +664,6 @@ def set_labels(session_lang: str):
         glossary_choice: gr.update(label=labels.get("Glossary", "Glossary")),
         max_retries_slider: gr.update(label=labels["Max Retries"]),
         thread_count_slider: gr.update(label=labels["Thread Count"]),
-        api_key_input: gr.update(label=labels["API Key"]),
         file_input: gr.update(label=file_upload_label),
         output_file: gr.update(label=labels["Download Translated File"]),
         status_message: gr.update(label=labels["Status Message"]),
@@ -852,7 +850,7 @@ def get_translator_class(file_extension, excel_mode_2=False, word_bilingual_mode
         return None
 
 def translate_files(
-    files, model, src_lang, dst_lang, use_online, api_key, max_retries=4, max_token=768, thread_count=4,
+    files, model, src_lang, dst_lang, use_online, max_retries=4, max_token=768, thread_count=4,
     excel_mode_2=False, word_bilingual_mode=False, glossary_name="Default", session_lang="en", continue_mode=False, progress=gr.Progress(track_tqdm=True)
 ):
     """Translate one or multiple files using chosen model"""
@@ -864,8 +862,9 @@ def translate_files(
     if not files:
         return gr.update(value=None, visible=False), "Please select file(s) to translate.", gr.update(value=stop_text, interactive=False)
 
-    if use_online and not api_key:
-        return gr.update(value=None, visible=False), "API key is required for online models.", gr.update(value=stop_text, interactive=False)
+    if use_online:
+        # API key is now read from model configuration file
+        pass
 
     src_lang_code = get_language_code(src_lang)
     dst_lang_code = get_language_code(dst_lang)
@@ -884,14 +883,14 @@ def translate_files(
         if isinstance(files, list) and len(files) > 1:
             result = process_multiple_files(
                 files, model, src_lang_code, dst_lang_code, 
-                use_online, api_key, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+                use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
             )
         else:
             # Handle single file case
             single_file = files[0] if isinstance(files, list) else files
             result = process_single_file(
                 single_file, model, src_lang_code, dst_lang_code, 
-                use_online, api_key, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+                use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
             )
         
         return result[0], result[1], gr.update(value=stop_text, interactive=False)
@@ -903,7 +902,7 @@ def translate_files(
 
 def process_single_file(
     file, model, src_lang_code, dst_lang_code, 
-    use_online, api_key, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+    use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
 ):
     """Process single file for translation"""
     file_name = os.path.basename(file.name)
@@ -928,7 +927,7 @@ def process_single_file(
     try:
         # Pass check_stop_requested function to translator with glossary_path
         translator = translator_class(
-            file.name, model, use_online, api_key,
+            file.name, model, use_online,
             src_lang_code, dst_lang_code, continue_mode, 
             max_token=max_token, max_retries=max_retries,
             thread_count=thread_count, glossary_path=glossary_path
@@ -961,7 +960,7 @@ def process_single_file(
     
 def process_multiple_files(
     files, model, src_lang_code, dst_lang_code, 
-    use_online, api_key, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+    use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
 ):
     """Process multiple files and return zip archive"""
     # Create temporary directory for translated files
@@ -1007,7 +1006,7 @@ def process_multiple_files(
                 try:
                     # Process file with glossary_path
                     translator = translator_class(
-                        file_obj.name, model, use_online, api_key,
+                        file_obj.name, model, use_online,
                         src_lang_code, dst_lang_code, continue_mode, max_token=max_token, max_retries=max_retries,
                         thread_count=thread_count, glossary_path=glossary_path
                     )
@@ -1137,14 +1136,14 @@ with gr.Blocks(
     )
 
     # Create main interface
-    (api_key_input, file_input, output_file, status_message, 
+    (file_input, output_file, status_message, 
      translate_button, continue_button, stop_button) = create_main_interface(config)
 
     # Event handlers
     use_online_model.change(
         update_model_list_and_api_input,
         inputs=use_online_model,
-        outputs=[model_choice, api_key_input, thread_count_slider]
+        outputs=[model_choice, thread_count_slider]
     )
     
     # Add LAN mode
@@ -1211,7 +1210,7 @@ with gr.Blocks(
         partial(modified_translate_button_click, translate_files),
         inputs=[
             file_input, model_choice, src_lang, dst_lang, 
-            use_online_model, api_key_input, max_retries_slider, max_token_state,
+            use_online_model, max_retries_slider, max_token_state,
             thread_count_slider, excel_mode_checkbox, word_bilingual_checkbox, glossary_choice, session_lang
         ],
         outputs=[output_file, status_message, stop_button]
@@ -1234,7 +1233,7 @@ with gr.Blocks(
         partial(modified_translate_button_click, translate_files, continue_mode=True),
         inputs=[
             file_input, model_choice, src_lang, dst_lang, 
-            use_online_model, api_key_input, max_retries_slider, max_token_state,
+            use_online_model, max_retries_slider, max_token_state,
             thread_count_slider, excel_mode_checkbox, word_bilingual_checkbox, glossary_choice, session_lang
         ],
         outputs=[output_file, status_message, stop_button]
@@ -1346,7 +1345,7 @@ with gr.Blocks(
             use_online_model, model_choice, glossary_choice, glossary_upload_file, glossary_upload_button,
             src_lang, dst_lang, use_online_model, lan_mode_checkbox,
             model_choice, glossary_choice, max_retries_slider, thread_count_slider,
-            api_key_input, file_input, output_file, status_message, translate_button,
+            file_input, output_file, status_message, translate_button,
             continue_button, excel_mode_checkbox, word_bilingual_checkbox, stop_button, glossary_upload_button
         ]
     )

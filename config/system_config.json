@@ -1,16 +1,15 @@
 {
-    
     "app_title": "思榕翻译助手",
     "img_path": "img/strong.png",
     "img_height": 100,
     "default_local_model": "(Ollama) qwen3:14b",
-    "default_online_model": "(Deepseek) DeepSeek-V3",
+    "default_online_model": "(Gemini) Gemini-2.0-flash",
     "max_token": 768,
     "max_retries": 1,
     "lan_mode": true,
-    "default_online": false,
+    "default_online": true,
     "show_model_selection": true,
-    "show_mode_switch": false,
+    "show_mode_switch": true,
     "show_max_retries": false,
     "show_thread_count": true,
     "show_glossary": true,
@@ -21,6 +20,6 @@
     "default_thread_count_offline": 16,
     "default_src_lang": "中文",
     "default_dst_lang": "English",
-    "default_glossary": "py翻译术语表",
+    "default_glossary": "Default",
     "footer_html": "<div style=\"position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; padding: 10px 0;\">有问题或优化建议请联系 李德善（024372）</div>"
 }

@@ -82,7 +82,7 @@ def fix_json_format(text):
         # Last resort: wrap everything in a JSON object
         return json.dumps({"translated_text": text}, ensure_ascii=False)
     
-def translate_online(api_key, messages, model):
+def translate_online(messages, model):
     """
     Perform translation using an online API with config from a JSON file.
     
@@ -99,6 +99,7 @@ def translate_online(api_key, messages, model):
     # Get API settings from the config
     base_url = model_config.get("base_url")
     api_model = model_config.get("model")
+    api_key = model_config.get("api_key")
     top_p = model_config.get("top_p")
     temperature = model_config.get("temperature")
     presence_penalty = model_config.get("presence_penalty")
@@ -107,6 +108,10 @@ def translate_online(api_key, messages, model):
     if not base_url or not api_model:
         app_logger.error(f"Invalid model config: {model}")
         return "Invalid model configuration", False
+    
+    if not api_key:
+        app_logger.error(f"API key not found in model config: {model}")
+        return f"API key not configured for {model}. Please add 'api_key' to the model configuration file.", False
 
     try:
         # Initialize API client

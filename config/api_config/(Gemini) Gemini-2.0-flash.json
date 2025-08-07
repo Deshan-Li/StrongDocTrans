@@ -1,4 +1,5 @@
 {
     "base_url": "https://api.gpt.ge/v1/",
-    "model": "gemini-2.0-flash"
+    "model": "gemini-2.0-flash",
+    "api_key": "your-gemini-api-key-here"
 }
