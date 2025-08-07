@@ -34,22 +34,41 @@ def extract_excel_content_to_json(file_path):
             nonlocal count
             sheet_data = []
             
-            # Process cells - improved logic
+            # Process cells - optimized logic to skip empty cells
             try:
                 used_range = sheet.used_range
                 if used_range:
                     app_logger.info(f"Processing sheet '{sheet.name}' with range: {used_range.address}")
                     
-                    # Get all values and process row by row
-                    max_row = used_range.last_cell.row
-                    max_col = used_range.last_cell.column
+                    # Get all values at once as 2D array - much faster than individual cell access
+                    values = used_range.value
+                    if values is None:
+                        app_logger.info(f"Sheet '{sheet.name}' has no data")
+                        return sheet_data
                     
-                    # Process each cell individually to avoid batch issues
-                    for row_idx in range(1, max_row + 1):
-                        for col_idx in range(1, max_col + 1):
+                    # Handle both single cell and 2D array cases
+                    if not isinstance(values, (list, tuple)):
+                        # Single cell case
+                        values = [[values]]
+                    elif values and not isinstance(values[0], (list, tuple)):
+                        # Single row case
+                        values = [values]
+                    
+                    # Get actual dimensions
+                    actual_rows = len(values)
+                    actual_cols = len(values[0]) if actual_rows > 0 else 0
+                    
+                    # Get starting row/column offset
+                    start_row = used_range.row
+                    start_col = used_range.column
+                    
+                    app_logger.info(f"Processing {actual_rows}x{actual_cols} actual data cells in sheet '{sheet.name}'")
+                    
+                    # Process only cells with actual data
+                    for relative_row_idx in range(actual_rows):
+                        for relative_col_idx in range(actual_cols):
                             try:
-                                cell = sheet.cells(row_idx, col_idx)
-                                cell_value = cell.value
+                                cell_value = values[relative_row_idx][relative_col_idx]
                                 
                                 # Skip None values
                                 if cell_value is None:
@@ -67,11 +86,16 @@ def extract_excel_content_to_json(file_path):
                                 if not should_translate(str(cell_value)):
                                     continue
                                 
-                                # Handle merged cells - improved logic
+                                # Calculate actual Excel row/column
+                                row_idx = start_row + relative_row_idx
+                                col_idx = start_col + relative_col_idx
+                                
+                                # Handle merged cells - optimized for batch processing
                                 is_merged = False
                                 should_process = True
                                 
                                 try:
+                                    cell = sheet.cells(row_idx, col_idx)
                                     if cell.api.MergeCells:
                                         merge_area = cell.api.MergeArea
                                         # Only process the top-left cell of merged area
@@ -82,7 +106,7 @@ def extract_excel_content_to_json(file_path):
                                             # This is a merged cell but not the top-left one
                                             should_process = False
                                 except Exception as merge_error:
-                                    app_logger.warning(f"Error checking merge status for cell {cell.address}: {str(merge_error)}")
+                                    app_logger.warning(f"Error checking merge status for cell ({row_idx}, {col_idx}): {str(merge_error)}")
                                     # If we can't determine merge status, process the cell anyway
                                     should_process = True
                                 
