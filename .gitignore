@@ -8,7 +8,6 @@ test/
 log/
 build/
 dist/
-models/tiktoken/
 
 *.xlsx
 *.7z
