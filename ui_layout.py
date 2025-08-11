@@ -666,51 +666,87 @@ def create_state_variables(config):
 
 
 def format_queue_display(current_task=None, queue_files=None):
-    """格式化显示队列中的文件名和状态
+    """格式化显示队列中的文件名和状态，支持WebSocket实时更新
     
     Args:
         current_task: 当前正在翻译的文件名或None
         queue_files: 排队中的文件列表
         
     Returns:
-        HTML格式的队列显示内容
+        HTML格式的队列显示内容，包含WebSocket集成
     """
     if queue_files is None:
         queue_files = []
     
+    # 加载WebSocket客户端脚本
     html_parts = [
-        "<div class='queue-container'>",
+        """
+        <div class="websocket-queue-container">
+            <script src="/static/js/progress_client.js"></script>
+            <link rel="stylesheet" href="/static/css/progress_ui.css">
+        """,
+        "<div class='queue-container' id='queue-display-container'>",
         "<div class='queue-title'>⚙️ 翻译队列</div>"
     ]
     
-    # 当前任务
-    if current_task:
-        html_parts.extend([
-            "<div class='current-task'>",
-            "<strong>🔄 正在翻译:</strong><br>",
-            f"<span style='color: #2196f3; font-weight: bold;'>{current_task}</span>",
-            "</div>"
-        ])
-    else:
-        html_parts.extend([
-            "<div class='queue-empty'>",
-            "📄 当前无翻译任务",
-            "</div>"
-        ])
+    # 当前任务（包含实时进度条）
+    html_parts.extend([
+        "<div class='current-task-section'>",
+        "<h4>🔄 当前任务</h4>",
+        "<div class='progress-container'>",
+        "    <div class='progress-bar'>",
+        "        <div class='progress-fill' id='current-task-progress' style='width: 0%'></div>",
+        "    </div>",
+        "    <div class='progress-info'>",
+        "        <span class='progress-text' id='current-task-text'>",
+        current_task or '等待任务',
+        "        </span>",
+        "        <span class='progress-stage' id='current-task-stage'></span>",
+        "        <span class='progress-eta' id='current-task-eta'></span>",
+        "    </div>",
+        "</div>",
+        "</div>"
+    ])
     
-    # 排队文件
-    if queue_files:
-        html_parts.extend([
-            "<div style='margin-top: 15px;'>",
-            f"<strong>⏰ 排队中 ({len(queue_files)} 个文件):</strong>"
-        ])
-        
-        for i, filename in enumerate(queue_files, 1):
-            html_parts.append(
-                f"<div class='queue-item'>{i}. {filename}</div>"
-            )
-        
-        html_parts.append("</div>")
+    # 连接状态指示器
+    html_parts.extend([
+        "<div class='connection-status' id='connection-status'>",
+        "    📡 连接中...",
+        "</div>"
+    ])
     
-    html_parts.append("</div>")
+    # 排队文件（支持实时更新）
+    html_parts.extend([
+        "<div class='queue-list-section'>",
+        f"<h4>⏰ 排队中 <span id='queue-length'>({len(queue_files)})</span></h4>",
+        "<div class='total-wait-time' id='total-wait-time'></div>",
+        "<ol class='queue-list' id='queue-list'>"
+    ])
+    
+    for i, filename in enumerate(queue_files, 1):
+        html_parts.append(
+            f"<li class='queue-item' data-index='{i-1}'>"
+            f"<span class='queue-filename'>{filename}</span>"
+            f"<span class='queue-eta' id='eta-{i-1}'></span>"
+            f"</li>"
+        )
+    
+    html_parts.extend([
+        "</ol>",
+        "</div>",
+        "</div>"
+    ])
+    
+    # 初始化脚本
+    html_parts.extend([
+        """
+        <script>
+        // 初始化WebSocket客户端
+        if (typeof WebSocketAPI !== 'undefined') {
+            WebSocketAPI.initGradioIntegration();
+        }
+        </script>
+        """
+    ])
+    
     return "".join(html_parts)

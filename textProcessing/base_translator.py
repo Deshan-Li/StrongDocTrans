@@ -93,6 +93,10 @@ class DocumentTranslator:
         self.check_for_stop()
         app_logger.info("Segmenting JSON content...")
         
+        # 更新阶段状态
+        if hasattr(progress_callback, 'update_stage'):
+            progress_callback.update_stage("extracting", "提取文档内容...")
+        
         # Get segments to translate
         all_segments = stream_segment_json(
             self.src_split_json_path,

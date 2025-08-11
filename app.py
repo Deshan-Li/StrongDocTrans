@@ -15,6 +15,10 @@ import threading
 import queue
 from functools import partial
 
+# WebSocket进度管理
+from websocket_progress_manager import initialize_websocket_server
+from progress_state_manager import start_task, update_progress, complete_task, update_queue, progress_manager
+
 # Import separated UI layout module
 from ui_layout import (
     get_custom_css, create_header, create_footer, create_language_section,
@@ -76,8 +80,16 @@ def enqueue_task(
         if active_tasks == 0:
             # No active tasks, start immediately
             active_tasks += 1
-            # 设置当前翻译文件
-            set_current_translation(filenames[0] if len(filenames) == 1 else f"{len(filenames)} 个文件")
+            # 设置当前翻译文件 - 始终显示文件名列表
+            if len(filenames) == 1:
+                set_current_translation(filenames[0])
+            else:
+                set_current_translation(f"{len(filenames)} 个文件: {', '.join(filenames)}")
+            
+            # 更新进度管理器
+            start_task(current_translation_filename or "未知文件")
+            update_queue([])
+            
             return None
         else:
             # Tasks running, add to queue
@@ -112,6 +124,9 @@ def enqueue_task(
                 task_queue.put(temp_queue.get())
             
             update_queue_files(all_queued_files)
+            update_queue(all_queued_files)
+            
+            # 广播队列更新
             return f"Task added to queue. Position: {queue_position}"
 
 def process_task_with_queue(
@@ -163,9 +178,12 @@ def process_next_task_in_queue(translate_func, progress):
             next_task = task_queue.get()
             active_tasks += 1
             
-            # 设置新的当前翻译文件
+            # 设置新的当前翻译文件 - 始终显示文件名列表
             filenames = next_task.get("filenames", [])
-            set_current_translation(filenames[0] if len(filenames) == 1 else f"{len(filenames)} 个文件")
+            if len(filenames) == 1:
+                set_current_translation(filenames[0])
+            else:
+                set_current_translation(f"{len(filenames)} 个文件: {', '.join(filenames)}")
             
             # 更新剩余队列
             remaining_files = []
@@ -180,6 +198,14 @@ def process_next_task_in_queue(translate_func, progress):
                 task_queue.put(temp_queue.get())
             
             update_queue_files(remaining_files)
+            update_queue(remaining_files)
+            
+            # 启动新任务 - 始终显示文件名列表
+            if len(filenames) == 1:
+                new_current = filenames[0]
+            else:
+                new_current = f"{len(filenames)} 个文件: {', '.join(filenames)}"
+            start_task(new_current)
             
             threading.Thread(
                 target=process_queued_task,
@@ -187,17 +213,30 @@ def process_next_task_in_queue(translate_func, progress):
                 daemon=True
             ).start()
         else:
-            # 没有更多任务，清空队列显示
+            # 队列为空，重置状态
+            complete_task(True, "所有任务完成")
+            update_queue([])
             update_queue_files([])
 
 def process_queued_task(translate_func, task_info, progress):
     """Process task from queue in separate thread"""
     try:
-        # Check if stop was requested before starting
+        # 获取文件名用于进度显示 - 始终显示文件名列表
+        filenames = task_info.get("filenames", [])
+        if len(filenames) == 1:
+            filename = filenames[0]
+        else:
+            filename = f"{len(filenames)} 个文件: {', '.join(filenames)}"
+        
+        # 检查停止请求
         check_stop_requested()
         
         if progress is None:
             progress = gr.Progress(track_tqdm=True)
+            
+        # 开始新任务
+        start_task(filename)
+        
         result = translate_func(
             task_info["files"],
             task_info["model"],
@@ -212,9 +251,17 @@ def process_queued_task(translate_func, task_info, progress):
             task_info["glossary_name"],
             task_info.get("session_lang", "en"),
             progress
-        )    
+        )
+        
+        # 任务成功完成
+        complete_task(True, "翻译完成")
+        
+    except StopTranslationException as e:
+        app_logger.info(f"Translation stopped: {e}")
+        complete_task(False, "用户取消")
     except Exception as e:
         app_logger.exception(f"Error processing queued task: {e}")
+        complete_task(False, f"错误: {str(e)}")
     finally:
         process_next_task_in_queue(translate_func, progress)
 
@@ -951,11 +998,24 @@ def translate_files(
     # Convert glossary name to full path
     glossary_path = os.path.join("glossary", f"{glossary_name}.csv") if glossary_name else None
 
-    # Common progress callback function
+    # WebSocket增强的进度回调函数
     def progress_callback(progress_value, desc=None):
         if check_stop_requested():
             raise StopTranslationException("Translation stopped by user")
         progress(progress_value, desc=desc)
+        
+        # 更新WebSocket进度
+        stage_map = {
+            "Initializing": "initializing",
+            "Extracting content": "extracting",
+            "Removing duplicates": "deduplicating",
+            "Segmenting text": "segmenting",
+            "Translating": "translating",
+            "Finalizing": "finalizing"
+        }
+        
+        stage = desc or "translating"
+        update_progress(progress_value, stage, desc)
 
     try:
         # 设置当前翻译文件
@@ -1452,6 +1512,13 @@ available_port = find_available_port(start_port=9980)
 
 # Enable queue for progress tracking
 demo.queue()
+
+# 启动WebSocket服务器
+websocket_started = initialize_websocket_server()
+if websocket_started:
+    app_logger.info("WebSocket实时进度服务器已启动 (端口: 9981)")
+else:
+    app_logger.warning("WebSocket服务器启动失败，将使用传统轮询模式")
 
 if initial_lan_mode:
     demo.launch(server_name="0.0.0.0", server_port=available_port, share=False, inbrowser=True)
