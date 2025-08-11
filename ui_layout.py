@@ -354,6 +354,82 @@ def get_custom_css():
         grid-template-columns: 1fr 1fr !important;
         gap: 10px !important;
     }
+
+    /* Queue display styles */
+    .queue-container {
+        background: rgba(248, 249, 250, 0.8) !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 8px !important;
+        padding: 15px !important;
+        margin-left: 20px !important;
+        min-height: 300px !important;
+        max-height: 500px !important;
+        overflow-y: auto !important;
+    }
+
+    .queue-title {
+        font-size: 1.2em !important;
+        font-weight: bold !important;
+        margin-bottom: 15px !important;
+        color: #495057 !important;
+    }
+
+    .current-task {
+        background: #e3f2fd !important;
+        border-left: 4px solid #2196f3 !important;
+        padding: 10px !important;
+        margin-bottom: 10px !important;
+        border-radius: 4px !important;
+    }
+
+    .queue-item {
+        background: #f8f9fa !important;
+        border: 1px solid #dee2e6 !important;
+        padding: 8px !important;
+        margin-bottom: 5px !important;
+        border-radius: 4px !important;
+        font-size: 0.9em !important;
+    }
+
+    .queue-item:hover {
+        background: #e9ecef !important;
+    }
+
+    .queue-empty {
+        color: #6c757d !important;
+        font-style: italic !important;
+        text-align: center !important;
+        padding: 20px !important;
+    }
+
+    /* Dark theme styles for queue */
+    .dark .queue-container {
+        background: rgba(33, 37, 41, 0.8) !important;
+        border-color: #495057 !important;
+    }
+
+    .dark .queue-title {
+        color: #f8f9fa !important;
+    }
+
+    .dark .current-task {
+        background: rgba(33, 150, 243, 0.2) !important;
+        border-left-color: #2196f3 !important;
+    }
+
+    .dark .queue-item {
+        background: rgba(52, 58, 64, 0.8) !important;
+        border-color: #495057 !important;
+        color: #f8f9fa !important;
+    }
+
+    /* Responsive layout for queue */
+    @media (max-width: 1200px) {
+        .queue-container {
+            margin-left: 0 !important;
+            margin-top: 20px !important;
+        }
+    }
     """
 
 def create_header(app_title, encoded_image, mime_type, img_height):
@@ -564,8 +640,15 @@ def create_main_interface(config):
         continue_button = gr.Button("Continue Translation", interactive=False)
         stop_button = gr.Button("Stop Translation", interactive=False)
     
+    # 添加队列显示组件
+    queue_display = gr.HTML(
+        value="<div style='padding: 10px;'><h4>翻译队列</h4><div id='current-task'>当前无翻译任务</div><div id='queue-list'></div></div>",
+        label="Translation Queue",
+        visible=True
+    )
+    
     return (file_input, output_file, status_message, 
-            translate_button, continue_button, stop_button)
+            translate_button, continue_button, stop_button, queue_display)
 
 
 def create_state_variables(config):
@@ -580,3 +663,54 @@ def create_state_variables(config):
         'word_bilingual_mode_state': gr.State(config.get("word_bilingual_mode", False)),
         'thread_count_state': gr.State(config.get("default_thread_count_online", 2) if config.get("default_online", False) else config.get("default_thread_count_offline", 4))
     }
+
+
+def format_queue_display(current_task=None, queue_files=None):
+    """格式化显示队列中的文件名和状态
+    
+    Args:
+        current_task: 当前正在翻译的文件名或None
+        queue_files: 排队中的文件列表
+        
+    Returns:
+        HTML格式的队列显示内容
+    """
+    if queue_files is None:
+        queue_files = []
+    
+    html_parts = [
+        "<div class='queue-container'>",
+        "<div class='queue-title'>⚙️ 翻译队列</div>"
+    ]
+    
+    # 当前任务
+    if current_task:
+        html_parts.extend([
+            "<div class='current-task'>",
+            "<strong>🔄 正在翻译:</strong><br>",
+            f"<span style='color: #2196f3; font-weight: bold;'>{current_task}</span>",
+            "</div>"
+        ])
+    else:
+        html_parts.extend([
+            "<div class='queue-empty'>",
+            "📄 当前无翻译任务",
+            "</div>"
+        ])
+    
+    # 排队文件
+    if queue_files:
+        html_parts.extend([
+            "<div style='margin-top: 15px;'>",
+            f"<strong>⏰ 排队中 ({len(queue_files)} 个文件):</strong>"
+        ])
+        
+        for i, filename in enumerate(queue_files, 1):
+            html_parts.append(
+                f"<div class='queue-item'>{i}. {filename}</div>"
+            )
+        
+        html_parts.append("</div>")
+    
+    html_parts.append("</div>")
+    return "".join(html_parts)

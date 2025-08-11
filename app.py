@@ -19,7 +19,7 @@ from functools import partial
 from ui_layout import (
     get_custom_css, create_header, create_footer, create_language_section,
     create_settings_section, create_model_glossary_section, create_main_interface,
-    create_state_variables, create_theme_toggle
+    create_state_variables, create_theme_toggle, format_queue_display
 )
 
 # Import language configs
@@ -54,6 +54,11 @@ translation_stop_requested = False
 current_translation_task = None
 stop_lock = threading.Lock()
 
+# Global variables for queue display
+current_translation_filename = None
+current_queue_filenames = []
+queue_display_lock = threading.Lock()
+
 def enqueue_task(
     translate_func, files, model, src_lang, dst_lang, 
     use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress
@@ -61,10 +66,18 @@ def enqueue_task(
     """Enqueue translation task or execute immediately if no tasks running"""
     global active_tasks
     
+    # 提取文件名用于队列显示
+    if isinstance(files, list):
+        filenames = [os.path.basename(f.name) if hasattr(f, 'name') else str(f) for f in files]
+    else:
+        filenames = [os.path.basename(files.name) if hasattr(files, 'name') else str(files)]
+    
     with task_lock:
         if active_tasks == 0:
             # No active tasks, start immediately
             active_tasks += 1
+            # 设置当前翻译文件
+            set_current_translation(filenames[0] if len(filenames) == 1 else f"{len(filenames)} 个文件")
             return None
         else:
             # Tasks running, add to queue
@@ -80,10 +93,25 @@ def enqueue_task(
                 "excel_mode_2": excel_mode_2,
                 "word_bilingual_mode": word_bilingual_mode,
                 "glossary_name": glossary_name,
-                "session_lang": session_lang
+                "session_lang": session_lang,
+                "filenames": filenames
             }
             task_queue.put(task_info)
             queue_position = task_queue.qsize()
+            
+            # 更新队列显示
+            all_queued_files = []
+            temp_queue = queue.Queue()
+            while not task_queue.empty():
+                item = task_queue.get()
+                all_queued_files.extend(item.get("filenames", []))
+                temp_queue.put(item)
+            
+            # 恢复队列
+            while not temp_queue.empty():
+                task_queue.put(temp_queue.get())
+            
+            update_queue_files(all_queued_files)
             return f"Task added to queue. Position: {queue_position}"
 
 def process_task_with_queue(
@@ -129,15 +157,38 @@ def process_next_task_in_queue(translate_func, progress):
     
     with task_lock:
         active_tasks -= 1
+        clear_current_translation()
         
         if not task_queue.empty():
             next_task = task_queue.get()
             active_tasks += 1
+            
+            # 设置新的当前翻译文件
+            filenames = next_task.get("filenames", [])
+            set_current_translation(filenames[0] if len(filenames) == 1 else f"{len(filenames)} 个文件")
+            
+            # 更新剩余队列
+            remaining_files = []
+            temp_queue = queue.Queue()
+            while not task_queue.empty():
+                item = task_queue.get()
+                remaining_files.extend(item.get("filenames", []))
+                temp_queue.put(item)
+            
+            # 恢复队列
+            while not temp_queue.empty():
+                task_queue.put(temp_queue.get())
+            
+            update_queue_files(remaining_files)
+            
             threading.Thread(
                 target=process_queued_task,
                 args=(translate_func, next_task, progress),
                 daemon=True
             ).start()
+        else:
+            # 没有更多任务，清空队列显示
+            update_queue_files([])
 
 def process_queued_task(translate_func, task_info, progress):
     """Process task from queue in separate thread"""
@@ -798,6 +849,34 @@ def show_mode_checkbox(files):
     
     return gr.update(visible=excel_visible), gr.update(visible=word_visible)
 
+def update_queue_display():
+    """更新队列显示内容"""
+    global current_translation_filename, current_queue_filenames
+    
+    with queue_display_lock:
+        return format_queue_display(current_translation_filename, current_queue_filenames)
+
+def set_current_translation(filename):
+    """设置当前正在翻译的文件名"""
+    global current_translation_filename
+    with queue_display_lock:
+        current_translation_filename = filename
+
+def clear_current_translation():
+    """清除当前翻译任务"""
+    global current_translation_filename
+    with queue_display_lock:
+        current_translation_filename = None
+
+def update_queue_files(files):
+    """更新排队文件列表"""
+    global current_queue_filenames
+    with queue_display_lock:
+        if files:
+            current_queue_filenames = [os.path.basename(f.name) if hasattr(f, 'name') else str(f) for f in files]
+        else:
+            current_queue_filenames = []
+
 def update_continue_button(files):
     """Check if temp folders exist for uploaded files and update continue button state"""
     if not files:
@@ -879,6 +958,14 @@ def translate_files(
         progress(progress_value, desc=desc)
 
     try:
+        # 设置当前翻译文件
+        if isinstance(files, list) and len(files) > 1:
+            current_filename = f"{len(files)} 个文件"
+        else:
+            single_file = files[0] if isinstance(files, list) else files
+            current_filename = os.path.basename(single_file.name)
+        set_current_translation(current_filename)
+        
         # Check if multiple files or single file
         if isinstance(files, list) and len(files) > 1:
             result = process_multiple_files(
@@ -893,11 +980,15 @@ def translate_files(
                 use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
             )
         
+        # 清除当前翻译任务
+        clear_current_translation()
         return result[0], result[1], gr.update(value=stop_text, interactive=False)
         
     except StopTranslationException:
+        clear_current_translation()
         return gr.update(value=None, visible=False), "Translation stopped by user.", gr.update(value=stop_text, interactive=False)
     except Exception as e:
+        clear_current_translation()
         return gr.update(value=None, visible=False), f"Error: {str(e)}", gr.update(value=stop_text, interactive=False)
 
 def process_single_file(
@@ -1135,9 +1226,9 @@ with gr.Blocks(
         config, local_models, online_models, get_glossary_files, get_default_glossary
     )
 
-    # Create main interface
+    # Create main interface with queue display
     (file_input, output_file, status_message, 
-     translate_button, continue_button, stop_button) = create_main_interface(config)
+     translate_button, continue_button, stop_button, queue_display) = create_main_interface(config)
 
     # Event handlers
     use_online_model.change(
@@ -1182,9 +1273,10 @@ with gr.Blocks(
     file_input.change(
         fn=lambda files: [show_mode_checkbox(files)[0], 
                         show_mode_checkbox(files)[1], 
-                        update_continue_button(files)],
+                        update_continue_button(files),
+                        update_queue_display()],
         inputs=file_input,
-        outputs=[excel_mode_checkbox, word_bilingual_checkbox, continue_button]
+        outputs=[excel_mode_checkbox, word_bilingual_checkbox, continue_button, queue_display]
     )
 
     # Glossary event handlers (only if glossary visible)
@@ -1203,9 +1295,9 @@ with gr.Blocks(
 
     # Update event handlers for translate button
     translate_button.click(
-        lambda: (gr.update(visible=False), None, gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True)),
+        lambda: (gr.update(visible=False), None, gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True), update_queue_display()),
         inputs=[],
-        outputs=[output_file, status_message, translate_button, continue_button, stop_button]
+        outputs=[output_file, status_message, translate_button, continue_button, stop_button, queue_display]
     ).then(
         partial(modified_translate_button_click, translate_files),
         inputs=[
@@ -1218,17 +1310,18 @@ with gr.Blocks(
         lambda session_lang: (
             gr.update(interactive=True), 
             gr.update(interactive=True), 
-            gr.update(value=LABEL_TRANSLATIONS.get(session_lang, LABEL_TRANSLATIONS["en"]).get("Stop Translation", "Stop Translation"), interactive=False)
+            gr.update(value=LABEL_TRANSLATIONS.get(session_lang, LABEL_TRANSLATIONS["en"]).get("Stop Translation", "Stop Translation"), interactive=False),
+            update_queue_display()
         ),
         inputs=[session_lang],
-        outputs=[translate_button, continue_button, stop_button]
+        outputs=[translate_button, continue_button, stop_button, queue_display]
     )
 
     # In continue_button.click event:
     continue_button.click(
-        lambda: (gr.update(visible=False), None, gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True)),
+        lambda: (gr.update(visible=False), None, gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True), update_queue_display()),
         inputs=[],
-        outputs=[output_file, status_message, translate_button, continue_button, stop_button]
+        outputs=[output_file, status_message, translate_button, continue_button, stop_button, queue_display]
     ).then(
         partial(modified_translate_button_click, translate_files, continue_mode=True),
         inputs=[
@@ -1241,10 +1334,11 @@ with gr.Blocks(
         lambda session_lang: (
             gr.update(interactive=True), 
             gr.update(interactive=True), 
-            gr.update(value=LABEL_TRANSLATIONS.get(session_lang, LABEL_TRANSLATIONS["en"]).get("Stop Translation", "Stop Translation"), interactive=False)
+            gr.update(value=LABEL_TRANSLATIONS.get(session_lang, LABEL_TRANSLATIONS["en"]).get("Stop Translation", "Stop Translation"), interactive=False),
+            update_queue_display()
         ),
         inputs=[session_lang],
-        outputs=[translate_button, continue_button, stop_button]
+        outputs=[translate_button, continue_button, stop_button, queue_display]
     )
 
     # Update stop button handler to pass session_lang:
