@@ -1,5 +1,0 @@
-{
-    "base_url": "https://openrouter.ai/api/v1",
-    "model": "anthropic/claude-4",
-    "api_key": "your-claude-api-key-here"
-}

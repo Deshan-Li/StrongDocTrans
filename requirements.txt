@@ -13,7 +13,7 @@ xlwings==0.33.11
 numpy
 pdfminer-six==20250416
 pymupdf<1.25.3
-opencv-python-headless
+opencv-python-headless==4.8.1.78
 onnx
 onnxruntime
 tqdm

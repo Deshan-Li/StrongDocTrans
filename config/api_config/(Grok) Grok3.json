@@ -1,5 +1,0 @@
-{
-    "base_url": "https://api.x.ai/v1",
-    "model": "grok-3-beta",
-    "api_key": "your-grok-api-key-here"
-}

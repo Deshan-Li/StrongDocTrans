@@ -1,0 +1,46 @@
+{
+    // 应用标题配置
+    "app_title": "思榕翻译助手",                    // Web界面显示的标题
+
+    // 界面图标配置
+    "img_path": "img/strong.png",                // Logo图片文件路径（相对于项目根目录）
+    "img_height": 100,                           // Logo图片显示高度（像素）
+
+    // 翻译模型默认配置
+    "default_local_model": "(Ollama) qwen3:14b",  // 默认本地模型名称，格式：(提供商) 模型名
+    "default_online_model": "(Siliconflow) DeepSeek-V3", // 默认在线模型名称，格式同上
+
+    // 翻译参数配置
+    "max_token": 768,                            // 单次翻译请求的最大Token数限制，用于文本分段
+    "max_retries": 1,                            // 翻译失败时的最大重试次数
+
+    // 网络访问模式配置
+    "lan_mode": true,                            // 是否启用局域网模式，true允许局域网内其他设备访问
+    "default_online": false,                     // 默认使用在线模式还是本地模式，true为在线，false为本地
+
+    // UI界面显示控制
+    "show_model_selection": true,                // 是否显示模型选择下拉框
+    "show_mode_switch": false,                    // 是否显示在线/本地模式切换开关
+    "show_max_retries": false,                   // 是否显示重试次数设置
+    "show_thread_count": false,                  // 是否显示线程数设置
+    "show_glossary": true,                       // 是否显示术语表选择
+    "show_lan_mode": false,                      // 是否显示局域网模式开关
+
+    // 文档格式特定配置
+    "excel_mode_2": true,                        // Excel翻译模式2：true为智能模式，false为简单模式
+    "word_bilingual_mode": false,                // Word文档是否启用双语对照模式
+
+    // 线程并发配置
+    "default_thread_count_online": 16,           // 在线翻译默认线程数（并发请求数）
+    "default_thread_count_offline": 4,           // 本地翻译默认线程数（受本地硬件性能影响）
+
+    // 默认语言配置
+    "default_src_lang": "English",               // 默认源语言
+    "default_dst_lang": "中文",                  // 默认目标语言
+
+    // 术语表配置
+    "default_glossary": "Default",               // 默认使用的术语表
+
+    // 页面底部信息配置
+    "footer_html": "<div style=\"position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; padding: 10px 0;\">有问题或优化建议请联系 许俊杰（017654）</div>"  // 页面底部固定显示的HTML内容
+}

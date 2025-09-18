@@ -1,9 +1,0 @@
-{
-    "base_url": "https://api.vveai.com/v1",
-    "model": "gpt-4o-mini",
-    "top_p": 0.95,
-    "temperature": 0.75,
-    "presence_penalty": 0.0,
-    "frequency_penalty": 0.0,
-    "api_key": "your-openai-api-key-here"
-}

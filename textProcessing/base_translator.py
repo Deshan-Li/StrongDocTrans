@@ -37,7 +37,7 @@ class DocumentTranslator:
         self.continue_mode = continue_mode
         self.translated_failed = True
         self.glossary_path = glossary_path
-        self.num_threads = thread_count
+        self.num_threads = int(thread_count)
         self.lock = Lock()
         self.check_stop_requested = None
         self.last_ui_update_time = 0

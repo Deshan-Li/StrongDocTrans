@@ -283,7 +283,7 @@ def read_system_config():
             "excel_mode_2": False,
             "word_bilingual_mode": False,
             "default_thread_count_online": 2,
-            "default_thread_count_offline": 4,
+            "default_thread_count_offline": 8,
             "default_src_lang": "English",
             "default_dst_lang": "English"
         }
@@ -317,7 +317,12 @@ def update_max_retries(max_retries):
     return max_retries
 
 def update_thread_count(thread_count):
-    """Update system config with new thread count setting"""
+    """Update system config with new thread count setting.
+    If thread_count is not an int, fall back to 4."""
+    try:
+        thread_count = int(thread_count)
+    except (ValueError, TypeError):
+        thread_count = 8  # Fallback to default if invalid
     config = read_system_config()
     # Update appropriate thread count based on current mode
     if config.get("default_online", False):
@@ -686,7 +691,7 @@ def update_model_list_and_api_input(use_online):
     config = read_system_config()
     
     # Get appropriate thread count based on mode
-    thread_count = config.get("default_thread_count_online", 2) if use_online else config.get("default_thread_count_offline", 4)
+    thread_count = config.get("default_thread_count_online", 2) if use_online else config.get("default_thread_count_offline", 8)
     
     if use_online:
         if default_online_model and default_online_model in online_models:
@@ -723,7 +728,7 @@ def init_ui(request: gr.Request):
     max_retries_state = 4
     
     # Get thread count based on mode
-    thread_count_state = config.get("default_thread_count_online", 2) if default_online_state else config.get("default_thread_count_offline", 4)
+    thread_count_state = config.get("default_thread_count_online", 2) if default_online_state else config.get("default_thread_count_offline", 8)
     
     # Get visibility settings
     show_max_retries = config.get("show_max_retries", True)
@@ -1067,7 +1072,7 @@ initial_max_retries = config.get("max_retries", 4)
 initial_excel_mode_2 = config.get("excel_mode_2", False)
 initial_word_bilingual_mode = config.get("word_bilingual_mode", False)
 initial_thread_count_online = config.get("default_thread_count_online", 2)
-initial_thread_count_offline = config.get("default_thread_count_offline", 4)
+initial_thread_count_offline = config.get("default_thread_count_offline", 8)
 initial_thread_count = initial_thread_count_online if initial_default_online else initial_thread_count_offline
 app_title = config.get("app_title", "LinguaHaru")
 app_title_web = "LinguaHaru" if app_title == "" else app_title
