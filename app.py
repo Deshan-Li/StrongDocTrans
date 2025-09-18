@@ -283,7 +283,7 @@ def read_system_config():
             "excel_mode_2": False,
             "word_bilingual_mode": False,
             "default_thread_count_online": 2,
-            "default_thread_count_offline": 8,
+            "default_thread_count_offline": 16,
             "default_src_lang": "English",
             "default_dst_lang": "English"
         }
@@ -320,9 +320,13 @@ def update_thread_count(thread_count):
     """Update system config with new thread count setting.
     If thread_count is not an int, fall back to 4."""
     try:
-        thread_count = int(thread_count)
+        # 处理空字符串或None值的情况
+        if thread_count is None or thread_count == '':
+            thread_count = 16  # Fallback to default if empty
+        else:
+            thread_count = int(thread_count)
     except (ValueError, TypeError):
-        thread_count = 8  # Fallback to default if invalid
+        thread_count = 16  # Fallback to default if invalid
     config = read_system_config()
     # Update appropriate thread count based on current mode
     if config.get("default_online", False):
@@ -650,32 +654,50 @@ def get_user_lang(request: gr.Request) -> str:
 
     return "en"
 
-def set_labels(session_lang: str):
+def set_labels(session_lang: str, visibility_config=None):
     """Update UI labels according to chosen language"""
     labels = LABEL_TRANSLATIONS.get(session_lang, LABEL_TRANSLATIONS["en"])
-    
+
     file_upload_label = "Upload Files"
     if "Upload Files" in labels:
         file_upload_label = labels["Upload Files"]
     elif "Upload File" in labels:
         file_upload_label = labels["Upload File"] + "s"
-    
+
+    # 获取可见性配置
+    if visibility_config is None:
+        visibility_config = read_system_config()
+
+    # 检查各个控件的可见性设置
+    show_max_retries = visibility_config.get("show_max_retries", True)
+    show_thread_count = visibility_config.get("show_thread_count", True)
+    show_lan_mode = visibility_config.get("show_lan_mode", True)
+    show_mode_switch = visibility_config.get("show_mode_switch", True)
+    show_model_selection = visibility_config.get("show_model_selection", True)
+    show_glossary = visibility_config.get("show_glossary", True)
+    show_excel_mode = False  # Excel模式默认隐藏，根据文件类型动态显示
+    show_word_bilingual = False  # Word双语模式默认隐藏，根据文件类型动态显示
+
+    # 智能布局优化：当两个控件都显示时缩小宽度，只显示一个时扩大宽度
+    both_controls_shown = show_max_retries and show_thread_count
+
     return {
         src_lang: gr.update(label=labels["Source Language"]),
         dst_lang: gr.update(label=labels["Target Language"]),
-        use_online_model: gr.update(label=labels["Use Online Model"]),
-        lan_mode_checkbox: gr.update(label=labels["Local Network Mode (Restart to Apply)"]),
-        model_choice: gr.update(label=labels["Models"]),
-        glossary_choice: gr.update(label=labels.get("Glossary", "Glossary")),
-        max_retries_slider: gr.update(label=labels["Max Retries"]),
-        thread_count_slider: gr.update(label=labels["Thread Count"]),
+        use_online_model: gr.update(label=labels["Use Online Model"], visible=show_mode_switch),
+        lan_mode_checkbox: gr.update(label=labels["Local Network Mode (Restart to Apply)"], visible=show_lan_mode),
+        model_choice: gr.update(label=labels["Models"], visible=show_model_selection),
+        glossary_choice: gr.update(label=labels.get("Glossary", "Glossary"), visible=show_glossary),
+        # 动态调整控件宽度：当两个都显示时使用scale=1，只显示一个时使用scale=2
+        max_retries_slider: gr.update(label=labels["Max Retries"], visible=show_max_retries, scale=1 if both_controls_shown else 2),
+        thread_count_slider: gr.update(label=labels["Thread Count"], visible=show_thread_count, scale=1 if both_controls_shown else 2),
         file_input: gr.update(label=file_upload_label),
         output_file: gr.update(label=labels["Download Translated File"]),
         status_message: gr.update(label=labels["Status Message"]),
         translate_button: gr.update(value=labels["Translate"]),
         continue_button: gr.update(value=labels["Continue Translation"]),
-        excel_mode_checkbox: gr.update(label=labels.get("Excel Mode", "Excel Mode")),
-        word_bilingual_checkbox: gr.update(label=labels.get("Word Bilingual", "Word Bilingual")),
+        excel_mode_checkbox: gr.update(label=labels.get("Excel Mode", "Excel Mode"), visible=show_excel_mode),
+        word_bilingual_checkbox: gr.update(label=labels.get("Word Bilingual", "Word Bilingual"), visible=show_word_bilingual),
         stop_button: gr.update(value=labels.get("Stop Translation", "Stop Translation")),
         glossary_upload_button: gr.update(value=labels.get("Upload Glossary", "Upload Glossary"))
     }
@@ -685,14 +707,14 @@ def set_labels(session_lang: str):
 #-------------------------------------------------------------------------
 
 def update_model_list_and_api_input(use_online):
-    """Switch model options and show/hide API Key, update config"""
+    """Switch model options and update thread count, update config"""
     # Update system config with new online mode
     update_online_mode(use_online)
     config = read_system_config()
-    
+
     # Get appropriate thread count based on mode
-    thread_count = config.get("default_thread_count_online", 2) if use_online else config.get("default_thread_count_offline", 8)
-    
+    thread_count = config.get("default_thread_count_online", 2) if use_online else config.get("default_thread_count_offline", 16)
+
     if use_online:
         if default_online_model and default_online_model in online_models:
             default_online_value = default_online_model
@@ -728,7 +750,7 @@ def init_ui(request: gr.Request):
     max_retries_state = 4
     
     # Get thread count based on mode
-    thread_count_state = config.get("default_thread_count_online", 2) if default_online_state else config.get("default_thread_count_offline", 8)
+    thread_count_state = config.get("default_thread_count_online", 2) if default_online_state else config.get("default_thread_count_offline", 16)
     
     # Get visibility settings
     show_max_retries = config.get("show_max_retries", True)
@@ -756,12 +778,8 @@ def init_ui(request: gr.Request):
         else:
             model_value = local_models[0] if local_models else None
     
-    label_updates = set_labels(user_lang)
-    
-    # Add visibility updates for max_retries, thread_count, and glossary
-    label_updates[max_retries_slider] = gr.update(label=LABEL_TRANSLATIONS.get(user_lang, LABEL_TRANSLATIONS["en"])["Max Retries"], visible=show_max_retries)
-    label_updates[thread_count_slider] = gr.update(label=LABEL_TRANSLATIONS.get(user_lang, LABEL_TRANSLATIONS["en"])["Thread Count"], visible=show_thread_count)
-    
+    label_updates = set_labels(user_lang, config)
+
     # Prepare return values
     label_values = list(label_updates.values())
     
@@ -1072,7 +1090,7 @@ initial_max_retries = config.get("max_retries", 4)
 initial_excel_mode_2 = config.get("excel_mode_2", False)
 initial_word_bilingual_mode = config.get("word_bilingual_mode", False)
 initial_thread_count_online = config.get("default_thread_count_online", 2)
-initial_thread_count_offline = config.get("default_thread_count_offline", 8)
+initial_thread_count_offline = config.get("default_thread_count_offline", 16)
 initial_thread_count = initial_thread_count_online if initial_default_online else initial_thread_count_offline
 app_title = config.get("app_title", "LinguaHaru")
 app_title_web = "LinguaHaru" if app_title == "" else app_title

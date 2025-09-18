@@ -446,29 +446,44 @@ def create_settings_section(config):
     initial_thread_count = initial_thread_count_online if initial_default_online else initial_thread_count_offline
     initial_excel_mode_2 = config.get("excel_mode_2", False)
     initial_word_bilingual_mode = config.get("word_bilingual_mode", False)
-    
+
     initial_show_mode_switch = config.get("show_mode_switch", True)
     initial_show_lan_mode = config.get("show_lan_mode", True)
     initial_show_max_retries = config.get("show_max_retries", True)
     initial_show_thread_count = config.get("show_thread_count", True)
-    
+
+    # 第一行：在线模式和局域网模式
     with gr.Row():
         with gr.Column(scale=1):
             use_online_model = gr.Checkbox(
-                label="Use Online Model", 
-                value=initial_default_online, 
+                label="Use Online Model",
+                value=initial_default_online,
                 visible=initial_show_mode_switch
             )
-        
+
         with gr.Column(scale=1):
             lan_mode_checkbox = gr.Checkbox(
-                label="Local Network Mode (Restart to Apply)", 
+                label="Local Network Mode (Restart to Apply)",
                 value=initial_lan_mode,
                 visible=initial_show_lan_mode
             )
-    
+
+    # 第二行：最大重试次数和线程数（智能动态布局）
+    # 如果两个都显示，各用一半宽度；如果只显示一个，用全部宽度
+    both_controls_shown = initial_show_max_retries and initial_show_thread_count
+
     with gr.Row():
-        with gr.Column(scale=1):
+        if initial_show_max_retries:
+            with gr.Column(scale=1 if both_controls_shown else 2):
+                max_retries_slider = gr.Slider(
+                    minimum=1,
+                    maximum=10,
+                    step=1,
+                    value=initial_max_retries,
+                    label="Max Retries",
+                    visible=initial_show_max_retries
+                )
+        else:
             max_retries_slider = gr.Slider(
                 minimum=1,
                 maximum=10,
@@ -477,8 +492,18 @@ def create_settings_section(config):
                 label="Max Retries",
                 visible=initial_show_max_retries
             )
-        
-        with gr.Column(scale=1):
+
+        if initial_show_thread_count:
+            with gr.Column(scale=1 if both_controls_shown else 2):
+                thread_count_slider = gr.Slider(
+                    minimum=1,
+                    maximum=16,
+                    step=1,
+                    value=initial_thread_count,
+                    label="Thread Count",
+                    visible=initial_show_thread_count
+                )
+        else:
             thread_count_slider = gr.Slider(
                 minimum=1,
                 maximum=16,
@@ -487,21 +512,21 @@ def create_settings_section(config):
                 label="Thread Count",
                 visible=initial_show_thread_count
             )
-    
+
     with gr.Row():
         excel_mode_checkbox = gr.Checkbox(
-            label="Use Excel Mode 2", 
-            value=initial_excel_mode_2, 
+            label="Use Excel Mode 2",
+            value=initial_excel_mode_2,
             visible=False
         )
-        
+
     word_bilingual_checkbox = gr.Checkbox(
-        label="Use Word Bilingual Mode", 
-        value=initial_word_bilingual_mode, 
+        label="Use Word Bilingual Mode",
+        value=initial_word_bilingual_mode,
         visible=False
     )
-    
-    return (use_online_model, lan_mode_checkbox, max_retries_slider, 
+
+    return (use_online_model, lan_mode_checkbox, max_retries_slider,
             thread_count_slider, excel_mode_checkbox, word_bilingual_checkbox)
 
 
