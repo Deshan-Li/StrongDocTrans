@@ -198,8 +198,8 @@ def check_stop_requested():
         return False
 
 def modified_translate_button_click(
-    translate_files_func, files, model, src_lang, dst_lang, 
-    use_online, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name,
+    translate_files_func, files, model, src_lang, dst_lang,
+    use_online, employee_id, employee_name, max_retries, max_token, thread_count, excel_mode_2, word_bilingual_mode, glossary_name,
     session_lang, continue_mode=False, progress=gr.Progress(track_tqdm=True)
 ):
     """Modified translate button click handler using task queue"""
@@ -212,19 +212,23 @@ def modified_translate_button_click(
     output_file_update = gr.update(visible=False)
     status_message = None
     reset_stop_flag()
-    
+
+    # Validate employee fields before processing
+    if not employee_id or not employee_name:
+        return output_file_update, "请输入工号和姓名。", gr.update(value=stop_text, interactive=False)
+
     if not files:
         return output_file_update, "Please select file(s) to translate.", gr.update(value=stop_text, interactive=False)
-    
+
     if use_online:
         # API key is now read from model configuration file
         pass
-    
-    def wrapped_translate_func(files, model, src_lang, dst_lang, 
+
+    def wrapped_translate_func(files, model, src_lang, dst_lang,
                               use_online, max_retries, max_token, thread_count,
                               excel_mode_2, word_bilingual_mode, glossary_name, session_lang, progress):
-        return translate_files_func(files, model, src_lang, dst_lang, 
-                                   use_online, max_retries, max_token, thread_count,
+        return translate_files_func(files, model, src_lang, dst_lang,
+                                   use_online, employee_id, employee_name, max_retries, max_token, thread_count,
                                    excel_mode_2, word_bilingual_mode, glossary_name, session_lang,
                                    continue_mode=continue_mode, progress=progress)
     
@@ -740,7 +744,7 @@ def init_ui(request: gr.Request):
     """Set user language and update labels on page load"""
     user_lang = get_user_lang(request)
     config = read_system_config()
-    
+
     lan_mode_state = config.get("lan_mode", False)
     default_online_state = config.get("default_online", False)
     max_token_state = config.get("max_token", MAX_TOKEN)
@@ -748,22 +752,22 @@ def init_ui(request: gr.Request):
     word_bilingual_mode_state = config.get("word_bilingual_mode", False)
     # Always use default 4 for max retries
     max_retries_state = 4
-    
+
     # Get thread count based on mode
     thread_count_state = config.get("default_thread_count_online", 2) if default_online_state else config.get("default_thread_count_offline", 16)
-    
+
     # Get visibility settings
     show_max_retries = config.get("show_max_retries", True)
     show_thread_count = config.get("show_thread_count", True)
     show_glossary = config.get("show_glossary", True)
-    
+
     # Get default glossary
     default_glossary = get_default_glossary()
     glossary_choices = get_glossary_files() + ["+"]
-    
+
     # Update use_online_model checkbox based on default_online setting
     use_online_value = default_online_state
-    
+
     # Update model choices based on online/offline mode
     if use_online_value:
         model_choices = online_models
@@ -777,28 +781,44 @@ def init_ui(request: gr.Request):
             model_value = default_local_model
         else:
             model_value = local_models[0] if local_models else None
-    
+
     label_updates = set_labels(user_lang, config)
 
-    # Prepare return values
+    # Prepare return values - exactly match demo.load outputs (26 values total)
     label_values = list(label_updates.values())
-    
-    # Return settings values and UI updates
+
+    # Returns in correct order:
+    # 1-8: States
+    # 9-18: UI components from set_labels (in demo.load order)
+    # 19-26: Remaining UI components
+
     return [
-        user_lang, 
-        lan_mode_state, 
-        default_online_state,
-        max_token_state,
-        max_retries_state,
-        excel_mode_2_state,
-        word_bilingual_mode_state,
+        # States (8)
+        user_lang, lan_mode_state, default_online_state, max_token_state,
+        max_retries_state, excel_mode_2_state, word_bilingual_mode_state,
         thread_count_state,
-        use_online_value,
-        gr.update(choices=model_choices, value=model_value),  # model_choice update
-        gr.update(choices=glossary_choices, value=default_glossary, visible=show_glossary),  # glossary_choice update with visibility
-        gr.update(visible=False),  # glossary_upload_file (initially hidden)
-        gr.update(visible=False)   # glossary_upload_button (initially hidden)
-    ] + label_values
+
+        # UI Components - exactly match demo.load order (18)
+        label_updates.get(use_online_model, gr.update(value=use_online_value)),
+        gr.update(choices=model_choices, value=model_value),
+        gr.update(choices=glossary_choices, value=default_glossary, visible=show_glossary),
+        gr.update(visible=False),  # glossary_upload_file
+        gr.update(visible=False),  # glossary_upload_button
+
+        label_updates.get(src_lang, gr.update()),
+        label_updates.get(dst_lang, gr.update()),
+        label_updates.get(lan_mode_checkbox, gr.update()),
+        label_updates.get(max_retries_slider, gr.update(value=max_retries_state)),
+        label_updates.get(thread_count_slider, gr.update(value=thread_count_state)),
+        label_updates.get(file_input, gr.update()),
+        label_updates.get(output_file, gr.update()),
+        label_updates.get(status_message, gr.update()),
+        label_updates.get(translate_button, gr.update()),
+        label_updates.get(continue_button, gr.update()),
+        label_updates.get(excel_mode_checkbox, gr.update()),
+        label_updates.get(word_bilingual_checkbox, gr.update()),
+        label_updates.get(stop_button, gr.update()),
+    ]
 
 def get_default_dropdown_value(saved_lang, dropdown_choices):
     """Get appropriate default value for language dropdowns"""
@@ -820,6 +840,18 @@ def show_mode_checkbox(files):
     word_visible = bool(word_files)
     
     return gr.update(visible=excel_visible), gr.update(visible=word_visible)
+
+def validate_translation_requirements(employee_id, employee_name, files):
+    """Validate all requirements for enabling translation buttons"""
+    # Check if employee fields are filled (handle None values)
+    has_employee_info = bool(employee_id and employee_name)
+    # Check if files are uploaded (handle None values)
+    has_files = bool(files and len(files) > 0)
+
+    # Enable translate button only if both conditions are met
+    translate_interactive = has_employee_info and has_files
+
+    return translate_interactive
 
 def update_continue_button(files):
     """Check if temp folders exist for uploaded files and update continue button state"""
@@ -873,7 +905,7 @@ def get_translator_class(file_extension, excel_mode_2=False, word_bilingual_mode
         return None
 
 def translate_files(
-    files, model, src_lang, dst_lang, use_online, max_retries=4, max_token=768, thread_count=4,
+    files, model, src_lang, dst_lang, use_online, employee_id, employee_name, max_retries=4, max_token=768, thread_count=4,
     excel_mode_2=False, word_bilingual_mode=False, glossary_name="Default", session_lang="en", continue_mode=False, progress=gr.Progress(track_tqdm=True)
 ):
     """Translate one or multiple files using chosen model"""
@@ -881,7 +913,11 @@ def translate_files(
     
     labels = LABEL_TRANSLATIONS.get(session_lang, LABEL_TRANSLATIONS["en"])
     stop_text = labels.get("Stop Translation", "Stop Translation")
-    
+
+    # Validate employee fields
+    if not employee_id or not employee_name:
+        return gr.update(value=None, visible=False), "请输入工号和姓名。", gr.update(value=stop_text, interactive=False)
+
     if not files:
         return gr.update(value=None, visible=False), "Please select file(s) to translate.", gr.update(value=stop_text, interactive=False)
 
@@ -905,15 +941,16 @@ def translate_files(
         # Check if multiple files or single file
         if isinstance(files, list) and len(files) > 1:
             result = process_multiple_files(
-                files, model, src_lang_code, dst_lang_code, 
-                use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+                files, model, src_lang_code, dst_lang_code,
+                use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback, employee_id, employee_name
             )
         else:
             # Handle single file case
             single_file = files[0] if isinstance(files, list) else files
             result = process_single_file(
-                single_file, model, src_lang_code, dst_lang_code, 
-                use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+                single_file, model, src_lang_code, dst_lang_code,
+                use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback,
+                employee_id, employee_name
             )
         
         return result[0], result[1], gr.update(value=stop_text, interactive=False)
@@ -924,8 +961,9 @@ def translate_files(
         return gr.update(value=None, visible=False), f"Error: {str(e)}", gr.update(value=stop_text, interactive=False)
 
 def process_single_file(
-    file, model, src_lang_code, dst_lang_code, 
-    use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+    file, model, src_lang_code, dst_lang_code,
+    use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback,
+    employee_id=None, employee_name=None
 ):
     """Process single file for translation"""
     file_name = os.path.basename(file.name)
@@ -966,6 +1004,14 @@ def process_single_file(
         )
         progress_callback(1, desc="Done!")
 
+        # Log successful translation to CSV
+        try:
+            from employee_logger import employee_logger
+            filename = os.path.basename(file.name)
+            employee_logger.log_translation(employee_id, employee_name, filename)
+        except Exception as log_error:
+            app_logger.warning(f"Failed to log translation activity: {log_error}")
+
         if missing_counts:
             msg = f"Warning: Missing segments for keys: {sorted(missing_counts)}"
             return gr.update(value=translated_file_path, visible=True), msg
@@ -982,8 +1028,8 @@ def process_single_file(
         return gr.update(value=None, visible=False), f"Error: {str(e)}"
     
 def process_multiple_files(
-    files, model, src_lang_code, dst_lang_code, 
-    use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback
+    files, model, src_lang_code, dst_lang_code,
+    use_online, max_token, max_retries, thread_count, excel_mode_2, word_bilingual_mode, glossary_path, continue_mode, progress_callback, employee_id=None, employee_name=None
 ):
     """Process multiple files and return zip archive"""
     # Create temporary directory for translated files
@@ -1060,6 +1106,15 @@ def process_multiple_files(
                     # Continue with next file
         
         progress_callback(1, desc="Done!")
+
+        # Log successful translation to CSV for each file
+        try:
+            from employee_logger import employee_logger
+            for _, rel_path in valid_files:
+                    employee_logger.log_translation(employee_id, employee_name, rel_path)
+        except Exception as log_error:
+            app_logger.warning(f"Failed to log translation activities: {log_error}")
+
         return gr.update(value=zip_path, visible=True), f"Translation completed. {total_files} files processed."
     
     except Exception as e:
@@ -1159,8 +1214,8 @@ with gr.Blocks(
     )
 
     # Create main interface
-    (file_input, output_file, status_message, 
-     translate_button, continue_button, stop_button) = create_main_interface(config)
+    (file_input, output_file, status_message,
+     translate_button, continue_button, stop_button, employee_id_input, employee_name_input) = create_main_interface(config)
 
     # Event handlers
     use_online_model.change(
@@ -1202,12 +1257,36 @@ with gr.Blocks(
         outputs=word_bilingual_mode_state
     )
     
+    def handle_file_input_change(files, employee_id, employee_name):
+        """Handle file input changes - update mode checkboxes, continue button, and validate requirements"""
+        excel_vis, word_vis = show_mode_checkbox(files)
+        continue_btn_state = update_continue_button(files)
+        translate_interactive = validate_translation_requirements(employee_id, employee_name, files)
+
+        return [excel_vis, word_vis, continue_btn_state, gr.update(interactive=translate_interactive)]
+
     file_input.change(
-        fn=lambda files: [show_mode_checkbox(files)[0], 
-                        show_mode_checkbox(files)[1], 
-                        update_continue_button(files)],
-        inputs=file_input,
-        outputs=[excel_mode_checkbox, word_bilingual_checkbox, continue_button]
+        fn=handle_file_input_change,
+        inputs=[file_input, employee_id_input, employee_name_input],
+        outputs=[excel_mode_checkbox, word_bilingual_checkbox, continue_button, translate_button]
+    )
+
+    # Employee field validation - disable/enable buttons based on input
+    def handle_employee_field_change(employee_id, employee_name, files):
+        """Handle employee field changes - validate requirements for translation button"""
+        translate_interactive = validate_translation_requirements(employee_id, employee_name, files)
+        return gr.update(interactive=translate_interactive)
+
+    employee_id_input.change(
+        fn=handle_employee_field_change,
+        inputs=[employee_id_input, employee_name_input, file_input],
+        outputs=[translate_button]
+    )
+
+    employee_name_input.change(
+        fn=handle_employee_field_change,
+        inputs=[employee_id_input, employee_name_input, file_input],
+        outputs=[translate_button]
     )
 
     # Glossary event handlers (only if glossary visible)
@@ -1232,8 +1311,8 @@ with gr.Blocks(
     ).then(
         partial(modified_translate_button_click, translate_files),
         inputs=[
-            file_input, model_choice, src_lang, dst_lang, 
-            use_online_model, max_retries_slider, max_token_state,
+            file_input, model_choice, src_lang, dst_lang,
+            use_online_model, employee_id_input, employee_name_input, max_retries_slider, max_token_state,
             thread_count_slider, excel_mode_checkbox, word_bilingual_checkbox, glossary_choice, session_lang
         ],
         outputs=[output_file, status_message, stop_button]
@@ -1255,8 +1334,8 @@ with gr.Blocks(
     ).then(
         partial(modified_translate_button_click, translate_files, continue_mode=True),
         inputs=[
-            file_input, model_choice, src_lang, dst_lang, 
-            use_online_model, max_retries_slider, max_token_state,
+            file_input, model_choice, src_lang, dst_lang,
+            use_online_model, employee_id_input, employee_name_input, max_retries_slider, max_token_state,
             thread_count_slider, excel_mode_checkbox, word_bilingual_checkbox, glossary_choice, session_lang
         ],
         outputs=[output_file, status_message, stop_button]
@@ -1366,10 +1445,10 @@ with gr.Blocks(
             session_lang, lan_mode_state, default_online_state, max_token_state, max_retries_state,
             excel_mode_2_state, word_bilingual_mode_state, thread_count_state,
             use_online_model, model_choice, glossary_choice, glossary_upload_file, glossary_upload_button,
-            src_lang, dst_lang, use_online_model, lan_mode_checkbox,
-            model_choice, glossary_choice, max_retries_slider, thread_count_slider,
+            src_lang, dst_lang, lan_mode_checkbox,
+            max_retries_slider, thread_count_slider,
             file_input, output_file, status_message, translate_button,
-            continue_button, excel_mode_checkbox, word_bilingual_checkbox, stop_button, glossary_upload_button
+            continue_button, excel_mode_checkbox, word_bilingual_checkbox, stop_button
         ]
     )
 

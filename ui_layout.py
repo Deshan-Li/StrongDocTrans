@@ -573,24 +573,38 @@ def create_model_glossary_section(config, local_models, online_models, get_gloss
 def create_main_interface(config):
     """Create main translation interface"""
     initial_default_online = config.get("default_online", False)
-    
-    
+
+    # Employee Information Section - Added above file upload
+    with gr.Row():
+        employee_id_input = gr.Textbox(
+            label="工号",
+            placeholder="请输入工号",
+            interactive=True,
+            elem_id="employee-id"
+        )
+        employee_name_input = gr.Textbox(
+            label="姓名",
+            placeholder="请输入姓名",
+            interactive=True,
+            elem_id="employee-name"
+        )
+
     file_input = gr.File(
         label="Upload Files (.docx, .pptx, .xlsx, .pdf, .srt, .txt, .md)",
         file_types=[".docx", ".pptx", ".xlsx", ".pdf", ".srt", ".txt", ".md"],
         file_count="multiple"
     )
-    
+
     output_file = gr.File(label="Download Translated File", visible=False)
     status_message = gr.Textbox(label="Status Message", interactive=False, visible=True)
-    
+
     with gr.Row():
-        translate_button = gr.Button("Translate")
+        translate_button = gr.Button("Translate", interactive=False)
         continue_button = gr.Button("Continue Translation", interactive=False)
         stop_button = gr.Button("Stop Translation", interactive=False)
-    
-    return (file_input, output_file, status_message, 
-            translate_button, continue_button, stop_button)
+
+    return (file_input, output_file, status_message,
+            translate_button, continue_button, stop_button, employee_id_input, employee_name_input)
 
 
 def create_state_variables(config):
