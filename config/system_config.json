@@ -8,7 +8,7 @@
     "max_retries": 1,
     "lan_mode": true,
     "default_online": false,
-    "show_model_selection": true,
+    "show_model_selection": false,
     "show_mode_switch": false,
     "show_max_retries": false,
     "show_thread_count": false,
