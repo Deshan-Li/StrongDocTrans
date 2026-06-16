@@ -342,16 +342,16 @@ def update_thread_count(thread_count):
 
 def update_excel_mode(excel_mode_2):
     """Update system config with new Excel mode setting"""
-    config = read_system_config()
-    config["excel_mode_2"] = excel_mode_2
-    write_system_config(config)
+    # config = read_system_config()
+    # config["excel_mode_2"] = excel_mode_2
+    # write_system_config(config)
     return excel_mode_2
 
 def update_word_bilingual_mode(word_bilingual_mode):
     """Update system config with new Word bilingual mode setting"""
-    config = read_system_config()
-    config["word_bilingual_mode"] = word_bilingual_mode
-    write_system_config(config)
+    # config = read_system_config()
+    # config["word_bilingual_mode"] = word_bilingual_mode
+    # write_system_config(config)
     return word_bilingual_mode
 
 def update_language_preferences(src_lang=None, dst_lang=None):
@@ -420,7 +420,8 @@ def resource_path(relative_path):
 def load_application_icon(config):
     """Load application icon using img_path from system_config.json"""
     # Get icon path from config
-    img_path = config.get("img_path", "img/ico.ico")
+    # img_path = config.get("img_path", "img/ico.ico")
+    img_path = "img/strong.png"
     
     # Define MIME types for different image formats
     mime_types = {
@@ -1147,10 +1148,13 @@ initial_word_bilingual_mode = config.get("word_bilingual_mode", False)
 initial_thread_count_online = config.get("default_thread_count_online", 2)
 initial_thread_count_offline = config.get("default_thread_count_offline", 16)
 initial_thread_count = initial_thread_count_online if initial_default_online else initial_thread_count_offline
-app_title = config.get("app_title", "LinguaHaru")
+# app_title = config.get("app_title", "LinguaHaru")
+app_title = "思榕翻译助手"
 app_title_web = "LinguaHaru" if app_title == "" else app_title
-img_path = config.get("img_path", "img/ico.png")
-img_height = config.get("img_height", 250)
+# img_path = config.get("img_path", "img/ico.png")
+img_path = "img/strong.png"
+# img_height = config.get("img_height", 250)
+img_height = 100
 
 # Update global MAX_TOKEN from config
 MAX_TOKEN = initial_max_token
@@ -1162,8 +1166,10 @@ initial_show_lan_mode = config.get("show_lan_mode", True)
 initial_show_max_retries = config.get("show_max_retries", True)
 initial_show_thread_count = config.get("show_thread_count", True)
 initial_show_glossary = config.get("show_glossary", True)
-default_local_model = config.get("default_local_model", "")
+# default_local_model = config.get("default_local_model", "")
+default_local_model = "(Ollama) qwen3:14b"
 default_online_model = config.get("default_online_model", "")
+# default_online_model = "(Siliconflow) DeepSeek-V3"
 
 encoded_image, mime_type = load_application_icon(config)
 
